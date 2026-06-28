@@ -54,6 +54,7 @@ services:
       - bash
       - -lc
       - |
+        python -m edu_platform.init_raw_schema &&
         airflow db migrate &&
         airflow users create \
           --role Admin \
