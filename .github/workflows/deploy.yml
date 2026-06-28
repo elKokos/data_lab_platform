@@ -8,6 +8,7 @@ on:
 
 jobs:
   deploy:
+    if: ${{ secrets.DEPLOY_HOST != '' && secrets.DEPLOY_USER != '' && secrets.DEPLOY_SSH_KEY != '' && secrets.DEPLOY_PATH != '' }}
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to VM over SSH
@@ -27,4 +28,3 @@ jobs:
             docker compose run --rm airflow-init
             docker compose up -d --build airflow-webserver airflow-scheduler
             docker compose exec -T airflow-scheduler airflow dags list | grep generate_daily_training_data
-
