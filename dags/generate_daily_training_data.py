@@ -6,7 +6,8 @@ from datetime import timedelta
 from pathlib import Path
 
 import pendulum
-from airflow.decorators import dag, get_current_context, task
+from airflow.decorators import dag, task
+from airflow.operators.python import get_current_context
 
 from edu_platform.data_generator import build_daily_batch, write_batch_to_csv
 from edu_platform.database import RAW_SCHEMA_SQL, TABLE_LOAD_ORDER, get_connection
