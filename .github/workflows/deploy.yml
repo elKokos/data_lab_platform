@@ -8,16 +8,37 @@ on:
 
 jobs:
   deploy:
-    if: ${{ secrets.DEPLOY_HOST != '' && secrets.DEPLOY_USER != '' && secrets.DEPLOY_SSH_KEY != '' && secrets.DEPLOY_PATH != '' }}
     runs-on: ubuntu-latest
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+      DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+      DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
     steps:
+      - name: Check deploy secrets
+        id: check
+        run: |
+          if [ -n "$DEPLOY_HOST" ] && [ -n "$DEPLOY_USER" ] && [ -n "$DEPLOY_SSH_KEY" ] && [ -n "$DEPLOY_PATH" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+            if [ -n "$DEPLOY_PORT" ]; then
+              echo "port=$DEPLOY_PORT" >> "$GITHUB_OUTPUT"
+            else
+              echo "port=22" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "Deploy secrets are not configured yet. Skipping deploy."
+          fi
+
       - name: Deploy to VM over SSH
+        if: steps.check.outputs.ready == 'true'
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          port: ${{ secrets.DEPLOY_PORT || 22 }}
+          port: ${{ steps.check.outputs.port }}
           script_stop: true
           script: |
             cd "${{ secrets.DEPLOY_PATH }}"
@@ -26,5 +47,5 @@ jobs:
             git pull --ff-only origin main
             docker compose up -d postgres
             docker compose run --rm airflow-init
-            docker compose up -d --build airflow-webserver airflow-scheduler
+            docker compose up -d airflow-webserver airflow-scheduler
             docker compose exec -T airflow-scheduler airflow dags list | grep generate_daily_training_data
