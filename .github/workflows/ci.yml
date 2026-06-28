@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Compile Python
+        run: python -m compileall src dags tests scripts
+
+      - name: Run unit tests
+        run: python -m unittest discover -s tests
+
+      - name: Prepare environment
+        run: cp .env.example .env
+
+      - name: Validate Docker Compose
+        run: docker compose config
+
+      - name: Make shell scripts executable
+        run: chmod +x sql/init/01-bootstrap-platform.sh scripts/*.sh
+
+      - name: Start Postgres
+        run: docker compose up -d postgres
+
+      - name: Wait for Postgres
+        run: |
+          for i in {1..20}; do
+            if docker compose exec -T postgres pg_isready -U postgres -d airflow_meta; then
+              exit 0
+            fi
+            sleep 5
+          done
+          exit 1
+
+      - name: Initialize Airflow
+        run: docker compose run --rm airflow-init
+
+      - name: Validate DAG import
+        run: |
+          docker compose run --rm airflow-scheduler airflow dags list | grep generate_daily_training_data
+
+      - name: Shutdown services
+        if: always()
+        run: docker compose down -v
