@@ -10,7 +10,7 @@ from airflow.decorators import dag, task
 from airflow.operators.python import get_current_context
 
 from edu_platform.data_generator import build_daily_batch, write_batch_to_csv
-from edu_platform.database import RAW_SCHEMA_SQL, TABLE_LOAD_ORDER, get_connection
+from edu_platform.database import TABLE_LOAD_ORDER, ensure_raw_schema as ensure_raw_schema_objects, get_connection
 
 
 def _batch_date_from_context() -> str:
@@ -30,10 +30,10 @@ def _batch_date_from_context() -> str:
 )
 def generate_daily_training_data():
     @task
-    def ensure_raw_schema() -> None:
+    def ensure_raw_schema_task() -> None:
         with get_connection() as conn:
             with conn.cursor() as cursor:
-                cursor.execute(RAW_SCHEMA_SQL)
+                ensure_raw_schema_objects(cursor)
             conn.commit()
 
     @task
@@ -133,7 +133,7 @@ def generate_daily_training_data():
         if output_dir and Path(output_dir).exists():
             shutil.rmtree(output_dir, ignore_errors=True)
 
-    schema_ready = ensure_raw_schema()
+    schema_ready = ensure_raw_schema_task()
     manifest = generate_batch_files()
     loaded_counts = load_to_raw(manifest)
     checks = run_quality_checks(loaded_counts)

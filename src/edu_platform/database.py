@@ -4,10 +4,13 @@ import os
 from contextlib import contextmanager
 
 import psycopg2
+from psycopg2 import errors
 
-RAW_SCHEMA_SQL = """
-CREATE SCHEMA IF NOT EXISTS raw AUTHORIZATION CURRENT_USER;
+RAW_SCHEMA_CREATE_SQL = """
+CREATE SCHEMA raw AUTHORIZATION CURRENT_USER;
+"""
 
+RAW_TABLES_SQL = """
 CREATE TABLE IF NOT EXISTS raw.merchants_raw (
     batch_date date NOT NULL,
     merchant_ref text,
@@ -167,6 +170,8 @@ CREATE INDEX IF NOT EXISTS idx_refunds_raw_batch_date ON raw.refunds_raw (batch_
 CREATE INDEX IF NOT EXISTS idx_support_tickets_raw_batch_date ON raw.support_tickets_raw (batch_date);
 """
 
+RAW_SCHEMA_SQL = RAW_TABLES_SQL
+
 TABLE_LOAD_ORDER = [
     "merchants_raw",
     "channels_raw",
@@ -200,3 +205,19 @@ def get_connection():
         yield conn
     finally:
         conn.close()
+
+
+def ensure_raw_schema(cursor) -> None:
+    cursor.execute("SELECT EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = 'raw')")
+    schema_exists = cursor.fetchone()[0]
+
+    if not schema_exists:
+        try:
+            cursor.execute(RAW_SCHEMA_CREATE_SQL)
+        except errors.InsufficientPrivilege as exc:
+            raise RuntimeError(
+                "Schema raw does not exist, and the current role cannot create it. "
+                "Create schema raw once as postgres/platform_admin or grant CREATE ON DATABASE edu_platform."
+            ) from exc
+
+    cursor.execute(RAW_TABLES_SQL)
