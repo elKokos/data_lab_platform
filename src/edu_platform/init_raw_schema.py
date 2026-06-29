@@ -8,6 +8,7 @@ def main() -> None:
         with conn.cursor() as cursor:
             cursor.execute(RAW_SCHEMA_SQL)
         conn.commit()
+    print("Initialized raw schema in edu_platform.")
 
 
 if __name__ == "__main__":
